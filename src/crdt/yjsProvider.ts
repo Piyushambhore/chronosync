@@ -9,7 +9,9 @@ import type { CanvasItem, HistoryCommit, PeerUser, ToolType, WorkspaceMeta } fro
  * In development:  reads from .env.development  → localhost:1999
  * In production:   reads from .env.production   → chronosync.username.partykit.dev
  */
-const PARTYKIT_HOST = import.meta.env.VITE_PARTYKIT_HOST as string;
+const PARTYKIT_HOST =
+  (import.meta.env.VITE_PARTYKIT_HOST as string) ||
+  (import.meta.env.PROD ? 'chronosync.piyushambhore.partykit.dev' : 'localhost:1999');
 
 const PEER_COLORS = [
   '#38bdf8', // Sky Blue

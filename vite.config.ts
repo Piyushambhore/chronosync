@@ -7,9 +7,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      // Expose VITE_PARTYKIT_HOST to the client bundle
+      // Expose VITE_PARTYKIT_HOST to the client bundle with automatic production fallback
       'import.meta.env.VITE_PARTYKIT_HOST': JSON.stringify(
-        env.VITE_PARTYKIT_HOST || ''
+        env.VITE_PARTYKIT_HOST || (mode === 'production' ? 'chronosync.piyushambhore.partykit.dev' : 'localhost:1999')
       ),
     },
     server: {
