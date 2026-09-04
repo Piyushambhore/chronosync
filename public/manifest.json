@@ -1,0 +1,17 @@
+{
+  "name": "ChronoSync — Local-First Canvas & Time Machine",
+  "short_name": "ChronoSync",
+  "description": "Local-first real-time collaborative canvas powered by CRDTs, IndexedDB offline persistence, and Cloudflare edge sync.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0d14",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
