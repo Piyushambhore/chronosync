@@ -17,6 +17,7 @@ import {
   Image as ImageIcon,
   Lock,
   Globe,
+  Shield,
 } from 'lucide-react';
 import type { PeerUser, WorkspaceMeta } from '../../types/canvas';
 import { BOARD_TEMPLATES } from '../../utils/templates';
@@ -32,8 +33,10 @@ interface HeaderBarProps {
   commitCount: number;
   isSoundMuted: boolean;
   isPresentationMode: boolean;
+  isReadOnly?: boolean;
   onToggleTimeTravel: () => void;
   onOpenWorkspaceModal: () => void;
+  onOpenAdminDashboard: () => void;
   onOpenP2PMonitor: () => void;
   onOpenShortcuts: () => void;
   onToggleSound: () => void;
@@ -65,8 +68,10 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   commitCount,
   isSoundMuted,
   isPresentationMode,
+  isReadOnly = false,
   onToggleTimeTravel,
   onOpenWorkspaceModal,
+  onOpenAdminDashboard,
   onOpenP2PMonitor,
   onOpenShortcuts,
   onToggleSound,
@@ -229,6 +234,27 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             ({elementCount} obj)
           </span>
         </div>
+
+        {/* Read-Only Mode Badge */}
+        {isReadOnly && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '11px',
+              fontWeight: 700,
+              color: '#f43f5e',
+              backgroundColor: 'rgba(244, 63, 94, 0.15)',
+              padding: '3px 8px',
+              borderRadius: '6px',
+              border: '1px solid rgba(244, 63, 94, 0.3)',
+            }}
+            title="Read-Only Mode active (editing locked by Admin)"
+          >
+            <Lock size={11} /> Read-Only
+          </div>
+        )}
 
         {/* Offline-First Storage Status Indicator */}
         <div
@@ -553,6 +579,29 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           title="Keyboard Shortcuts (?)"
         >
           <HelpCircle size={16} />
+        </button>
+
+        {/* Admin Dashboard Button */}
+        <button
+          onClick={onOpenAdminDashboard}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            backgroundColor: 'rgba(168, 85, 247, 0.15)',
+            color: '#c084fc',
+            border: '1px solid rgba(168, 85, 247, 0.35)',
+            borderRadius: '8px',
+            padding: '5px 11px',
+            fontSize: '12px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          title="Open Master Admin & Control Center"
+        >
+          <Shield size={13} color="#c084fc" />
+          <span>Admin</span>
         </button>
 
         {/* Share & Workspaces Button */}

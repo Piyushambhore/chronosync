@@ -15,6 +15,7 @@ import { HeaderBar } from './components/Header/HeaderBar';
 import { TimeTravelScrubber } from './components/TimeTravel/TimeTravelScrubber';
 import { MiniMap } from './components/Canvas/MiniMap';
 import { WorkspaceModal } from './components/Modals/WorkspaceModal';
+import { AdminDashboardModal } from './components/Modals/AdminDashboardModal';
 import { PrivateRoomLockOverlay } from './components/Modals/PrivateRoomLockOverlay';
 import { P2PMonitorModal } from './components/Modals/P2PMonitorModal';
 import { GitLogModal } from './components/Modals/GitLogModal';
@@ -78,6 +79,11 @@ export function App() {
   const [isSoundMuted, setIsSoundMuted] = useState(soundFX.isMuted);
 
   // 7. Modals & Workspace State
+  const initialAdmin = useMemo(() => {
+    return new URLSearchParams(window.location.search).get('admin') === 'true';
+  }, []);
+  const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(initialAdmin);
+  const [isReadOnly, setIsReadOnly] = useState(false);
   const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const [workspaceMeta, setWorkspaceMeta] = useState<WorkspaceMeta | null>(null);
   const [isRoomLocked, setIsRoomLocked] = useState(false);
@@ -357,6 +363,40 @@ export function App() {
     [workspaceMeta, roomName]
   );
 
+  // Admin: Update Workspace Privacy
+  const handleUpdateWorkspacePrivacy = useCallback(
+    (isPrivate: boolean, passcode?: string) => {
+      const passcodeHash = isPrivate && passcode ? simpleHash(passcode) : undefined;
+      const updatedMeta: WorkspaceMeta = {
+        code: workspaceMeta?.code || roomName,
+        name: workspaceMeta?.name || 'Workspace',
+        isPrivate,
+        passcodeHash,
+        createdAt: workspaceMeta?.createdAt || Date.now(),
+        createdBy: workspaceMeta?.createdBy || localUser.name,
+      };
+      if (passcodeHash) {
+        sessionStorage.setItem('unlocked_' + roomName, passcodeHash);
+      }
+      engine?.setWorkspaceMeta(updatedMeta);
+      setWorkspaceMeta(updatedMeta);
+      soundFX.playSuccess();
+    },
+    [workspaceMeta, roomName, localUser.name, engine]
+  );
+
+  // Admin: Force Milestone Commit Checkpoint
+  const handleForceCommit = useCallback(
+    (description: string) => {
+      if (engine) {
+        engine.forceCommit(description);
+        soundFX.playSuccess();
+        confetti({ particleCount: 35, spread: 50, origin: { y: 0.2 } });
+      }
+    },
+    [engine]
+  );
+
   // Export Canvas JSON
   const handleExportJson = useCallback(() => {
     const data = {
@@ -445,8 +485,10 @@ export function App() {
         commitCount={commits.length}
         isSoundMuted={isSoundMuted}
         isPresentationMode={isPresentationMode}
+        isReadOnly={isReadOnly}
         onToggleTimeTravel={() => setIsTimeTravelActive(!isTimeTravelActive)}
         onOpenWorkspaceModal={() => setIsWorkspaceModalOpen(true)}
+        onOpenAdminDashboard={() => setIsAdminDashboardOpen(true)}
         onOpenP2PMonitor={() => setIsP2PMonitorOpen(true)}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
         onToggleSound={handleToggleSound}
@@ -470,7 +512,7 @@ export function App() {
           selectedShapeType={selectedShapeType}
           zoom={viewport.zoom}
           selectedCount={selectedIds.length}
-          isHistoricalPreview={isViewingHistory}
+          isHistoricalPreview={isViewingHistory || isReadOnly}
           onSelectTool={handleSelectTool}
           onSelectColor={setSelectedColor}
           onSelectStrokeWidth={setStrokeWidth}
@@ -495,7 +537,7 @@ export function App() {
         currentUserName={localUser.name}
         viewport={viewport}
         setViewport={setViewport}
-        isHistoricalPreview={isViewingHistory}
+        isHistoricalPreview={isViewingHistory || isReadOnly}
         onSelectElements={setSelectedIds}
         onUpdateElement={handleUpdateElement}
         onCreateElement={handleCreateElement}
@@ -529,6 +571,28 @@ export function App() {
         onClose={() => setIsWorkspaceModalOpen(false)}
         onSwitchRoom={handleSwitchRoom}
         onCreateWorkspace={handleCreateWorkspace}
+      />
+
+      {/* Admin Master Control Center Dashboard */}
+      <AdminDashboardModal
+        isOpen={isAdminDashboardOpen}
+        roomName={roomName}
+        workspaceMeta={workspaceMeta}
+        peers={peers}
+        elements={elements}
+        commits={commits}
+        isIdbSynced={isIdbSynced}
+        isReadOnly={isReadOnly}
+        onClose={() => setIsAdminDashboardOpen(false)}
+        onToggleReadOnly={setIsReadOnly}
+        onSwitchRoom={handleSwitchRoom}
+        onUpdateWorkspacePrivacy={handleUpdateWorkspacePrivacy}
+        onClearCanvas={handleClearCanvas}
+        onLoadTemplate={handleLoadTemplate}
+        onForceCommit={handleForceCommit}
+        onRestoreCommit={handleRestoreCommit}
+        onExportJson={handleExportJson}
+        measurePing={() => engine?.measurePing() ?? Promise.resolve(25)}
       />
 
       {/* Private Room Passcode Protection Overlay */}

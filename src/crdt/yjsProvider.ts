@@ -236,6 +236,29 @@ export class ChronoSyncEngine {
     }, delayMs);
   }
 
+  public forceCommit(description: string): HistoryCommit {
+    if (this.commitDebounceTimer) {
+      clearTimeout(this.commitDebounceTimer);
+      this.commitDebounceTimer = null;
+    }
+    return this.recordCommit(description);
+  }
+
+  public async measurePing(): Promise<number> {
+    const start = performance.now();
+    try {
+      const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
+      const host = PARTYKIT_HOST || 'localhost:1999';
+      await fetch(`${proto}//${host}/parties/main/${this.roomName}`, {
+        method: 'HEAD',
+        cache: 'no-store',
+      });
+      return Math.max(1, Math.round(performance.now() - start));
+    } catch {
+      return Math.max(1, Math.round(performance.now() - start));
+    }
+  }
+
   public recordCommit(description: string): HistoryCommit {
     const snapshot = Y.snapshot(this.doc);
     const encodedSnapshot = Array.from(Y.encodeSnapshot(snapshot));
