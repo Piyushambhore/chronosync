@@ -131,3 +131,17 @@ export interface WorkspaceMeta {
   createdAt: number;
   createdBy: string;
 }
+
+export interface BannedPeer {
+  id: string;
+  name: string;
+  bannedAt: number;
+  reason?: string;
+  clientId?: number;
+}
+
+export interface ModerationState {
+  bannedPeers: BannedPeer[];
+  kickedClientIds: number[];
+}
+

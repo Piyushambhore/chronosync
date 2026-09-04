@@ -1,7 +1,7 @@
 import * as Y from 'yjs';
 import YPartyKitProvider from 'y-partykit/provider';
 import { IndexeddbPersistence } from 'y-indexeddb';
-import type { CanvasItem, HistoryCommit, PeerUser, ToolType, WorkspaceMeta } from '../types/canvas';
+import type { CanvasItem, HistoryCommit, PeerUser, ToolType, WorkspaceMeta, BannedPeer, ModerationState } from '../types/canvas';
 
 /**
  * PartyKit WebSocket host.
@@ -50,6 +50,7 @@ export class ChronoSyncEngine {
   public elementsMap: Y.Map<CanvasItem>;
   public commitsArray: Y.Array<HistoryCommit>;
   public workspaceMetaMap: Y.Map<any>;
+  public moderationMap: Y.Map<any>;
   public roomName: string;
   public localUser: { name: string; color: string; avatar: string };
   public isIdbSynced: boolean = false;
@@ -60,6 +61,7 @@ export class ChronoSyncEngine {
   private onCommitsChangeListeners: Set<(commits: HistoryCommit[]) => void> = new Set();
   private onSyncStatusListeners: Set<(synced: boolean) => void> = new Set();
   private onWorkspaceMetaChangeListeners: Set<(meta: WorkspaceMeta | null) => void> = new Set();
+  private onModerationChangeListeners: Set<(state: ModerationState) => void> = new Set();
 
   constructor(roomName: string = 'chronosync-main') {
     this.roomName = roomName;
@@ -67,6 +69,7 @@ export class ChronoSyncEngine {
     this.elementsMap = this.doc.getMap<CanvasItem>('canvas-elements');
     this.commitsArray = this.doc.getArray<HistoryCommit>('canvas-commits');
     this.workspaceMetaMap = this.doc.getMap<any>('workspace-metadata');
+    this.moderationMap = this.doc.getMap<any>('workspace-moderation');
 
     // Retrieve or generate persistent user profile
     const savedUser = localStorage.getItem('chronosync-user-profile');
@@ -169,6 +172,11 @@ export class ChronoSyncEngine {
     // Listen to workspace metadata CRDT map updates
     this.workspaceMetaMap.observeDeep(() => {
       this.notifyWorkspaceMeta();
+    });
+
+    // Listen to workspace moderation updates (bans & kicks)
+    this.moderationMap.observeDeep(() => {
+      this.notifyModeration();
     });
   }
 
@@ -430,6 +438,78 @@ export class ChronoSyncEngine {
 
   private notifySyncStatus() {
     this.onSyncStatusListeners.forEach((cb) => cb(this.isIdbSynced));
+  }
+
+  // --- Workspace Moderation (Kick & Ban) ---
+
+  public getModerationState(): ModerationState {
+    const rawBanned = this.moderationMap.get('bannedPeers');
+    const rawKicked = this.moderationMap.get('kickedClientIds');
+    return {
+      bannedPeers: Array.isArray(rawBanned) ? rawBanned : [],
+      kickedClientIds: Array.isArray(rawKicked) ? rawKicked : [],
+    };
+  }
+
+  public banPeer(peer: PeerUser, reason: string = 'Violation of room rules') {
+    const state = this.getModerationState();
+    if (state.bannedPeers.some((b) => b.name === peer.name || b.clientId === peer.clientId)) {
+      return;
+    }
+    const newEntry: BannedPeer = {
+      id: `peer_${peer.clientId}_${Date.now()}`,
+      name: peer.name,
+      bannedAt: Date.now(),
+      reason,
+      clientId: peer.clientId,
+    };
+    this.doc.transact(() => {
+      this.moderationMap.set('bannedPeers', [...state.bannedPeers, newEntry]);
+      this.moderationMap.set('kickedClientIds', [...state.kickedClientIds, peer.clientId]);
+    });
+  }
+
+  public unbanPeer(idOrName: string) {
+    const state = this.getModerationState();
+    const updated = state.bannedPeers.filter((b) => b.id !== idOrName && b.name !== idOrName);
+    this.doc.transact(() => {
+      this.moderationMap.set('bannedPeers', updated);
+    });
+  }
+
+  public kickPeer(clientId: number) {
+    const state = this.getModerationState();
+    if (!state.kickedClientIds.includes(clientId)) {
+      this.doc.transact(() => {
+        this.moderationMap.set('kickedClientIds', [...state.kickedClientIds, clientId]);
+      });
+    }
+  }
+
+  public isLocalUserBanned(): boolean {
+    const state = this.getModerationState();
+    const localId = this.doc.clientID;
+    return state.bannedPeers.some(
+      (b) =>
+        b.name.trim().toLowerCase() === this.localUser.name.trim().toLowerCase() ||
+        (b.clientId !== undefined && b.clientId === localId)
+    );
+  }
+
+  public isLocalUserKicked(): boolean {
+    const state = this.getModerationState();
+    return state.kickedClientIds.includes(this.doc.clientID);
+  }
+
+  public subscribeModeration(cb: (state: ModerationState) => void): () => void {
+    this.onModerationChangeListeners.add(cb);
+    cb(this.getModerationState());
+    return () => this.onModerationChangeListeners.delete(cb);
+  }
+
+  private notifyModeration() {
+    const state = this.getModerationState();
+    this.onModerationChangeListeners.forEach((cb) => cb(state));
   }
 
   public destroy() {

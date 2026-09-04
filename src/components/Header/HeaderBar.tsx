@@ -36,7 +36,7 @@ interface HeaderBarProps {
   isReadOnly?: boolean;
   onToggleTimeTravel: () => void;
   onOpenWorkspaceModal: () => void;
-  onOpenAdminDashboard: () => void;
+  onOpenAdminDashboard?: () => void;
   onOpenP2PMonitor: () => void;
   onOpenShortcuts: () => void;
   onToggleSound: () => void;
@@ -581,28 +581,30 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <HelpCircle size={16} />
         </button>
 
-        {/* Admin Dashboard Button */}
-        <button
-          onClick={onOpenAdminDashboard}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            backgroundColor: 'rgba(168, 85, 247, 0.15)',
-            color: '#c084fc',
-            border: '1px solid rgba(168, 85, 247, 0.35)',
-            borderRadius: '8px',
-            padding: '5px 11px',
-            fontSize: '12px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-          title="Open Master Admin & Control Center"
-        >
-          <Shield size={13} color="#c084fc" />
-          <span>Admin</span>
-        </button>
+        {/* Admin Dashboard Button (Only if authorized/passed) */}
+        {onOpenAdminDashboard && (
+          <button
+            onClick={onOpenAdminDashboard}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: 'rgba(168, 85, 247, 0.15)',
+              color: '#c084fc',
+              border: '1px solid rgba(168, 85, 247, 0.35)',
+              borderRadius: '8px',
+              padding: '5px 11px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+            title="Open Master Admin & Control Center"
+          >
+            <Shield size={13} color="#c084fc" />
+            <span>Admin</span>
+          </button>
+        )}
 
         {/* Share & Workspaces Button */}
         <button

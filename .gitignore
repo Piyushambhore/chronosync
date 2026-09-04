@@ -29,3 +29,6 @@ dist-ssr
 
 # PartyKit local state
 .partykit
+
+# Standalone Private Admin Portal (separate private repository)
+chronosync-admin/

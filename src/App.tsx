@@ -16,6 +16,7 @@ import { TimeTravelScrubber } from './components/TimeTravel/TimeTravelScrubber';
 import { MiniMap } from './components/Canvas/MiniMap';
 import { WorkspaceModal } from './components/Modals/WorkspaceModal';
 import { AdminDashboardModal } from './components/Modals/AdminDashboardModal';
+import { BannedOverlay } from './components/Modals/BannedOverlay';
 import { PrivateRoomLockOverlay } from './components/Modals/PrivateRoomLockOverlay';
 import { P2PMonitorModal } from './components/Modals/P2PMonitorModal';
 import { GitLogModal } from './components/Modals/GitLogModal';
@@ -88,6 +89,8 @@ export function App() {
   const [workspaceMeta, setWorkspaceMeta] = useState<WorkspaceMeta | null>(null);
   const [isRoomLocked, setIsRoomLocked] = useState(false);
   const [pendingMeta, setPendingMeta] = useState<WorkspaceMeta | null>(null);
+  const [isBanned, setIsBanned] = useState(false);
+  const [isKicked, setIsKicked] = useState(false);
   const [isP2PMonitorOpen, setIsP2PMonitorOpen] = useState(false);
   const [isGitLogOpen, setIsGitLogOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
@@ -124,12 +127,18 @@ export function App() {
       setWorkspaceMeta(meta);
     });
 
+    const unsubMod = newEngine.subscribeModeration(() => {
+      setIsBanned(newEngine.isLocalUserBanned());
+      setIsKicked(newEngine.isLocalUserKicked());
+    });
+
     return () => {
       unsubElements();
       unsubPeers();
       unsubCommits();
       unsubSync();
       unsubMeta();
+      unsubMod();
       newEngine.destroy();
     };
   }, [roomName, pendingMeta]);
@@ -488,7 +497,7 @@ export function App() {
         isReadOnly={isReadOnly}
         onToggleTimeTravel={() => setIsTimeTravelActive(!isTimeTravelActive)}
         onOpenWorkspaceModal={() => setIsWorkspaceModalOpen(true)}
-        onOpenAdminDashboard={() => setIsAdminDashboardOpen(true)}
+        onOpenAdminDashboard={initialAdmin ? () => setIsAdminDashboardOpen(true) : undefined}
         onOpenP2PMonitor={() => setIsP2PMonitorOpen(true)}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
         onToggleSound={handleToggleSound}
@@ -593,6 +602,15 @@ export function App() {
         onRestoreCommit={handleRestoreCommit}
         onExportJson={handleExportJson}
         measurePing={() => engine?.measurePing() ?? Promise.resolve(25)}
+      />
+
+      {/* Real-time Banned or Kicked Security Overlay */}
+      <BannedOverlay
+        isBanned={isBanned}
+        isKicked={isKicked}
+        roomName={roomName}
+        onSwitchRoom={handleSwitchRoom}
+        onReconnect={() => window.location.reload()}
       />
 
       {/* Private Room Passcode Protection Overlay */}
