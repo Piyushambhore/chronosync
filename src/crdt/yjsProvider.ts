@@ -1,7 +1,7 @@
 import * as Y from 'yjs';
 import YPartyKitProvider from 'y-partykit/provider';
 import { IndexeddbPersistence } from 'y-indexeddb';
-import type { CanvasItem, HistoryCommit, PeerUser, ToolType } from '../types/canvas';
+import type { CanvasItem, HistoryCommit, PeerUser, ToolType, WorkspaceMeta } from '../types/canvas';
 
 /**
  * PartyKit WebSocket host.
@@ -47,6 +47,7 @@ export class ChronoSyncEngine {
   public indexeddbProvider: IndexeddbPersistence | null = null;
   public elementsMap: Y.Map<CanvasItem>;
   public commitsArray: Y.Array<HistoryCommit>;
+  public workspaceMetaMap: Y.Map<any>;
   public roomName: string;
   public localUser: { name: string; color: string; avatar: string };
   public isIdbSynced: boolean = false;
@@ -56,12 +57,14 @@ export class ChronoSyncEngine {
   private onPeersChangeListeners: Set<(peers: PeerUser[]) => void> = new Set();
   private onCommitsChangeListeners: Set<(commits: HistoryCommit[]) => void> = new Set();
   private onSyncStatusListeners: Set<(synced: boolean) => void> = new Set();
+  private onWorkspaceMetaChangeListeners: Set<(meta: WorkspaceMeta | null) => void> = new Set();
 
   constructor(roomName: string = 'chronosync-main') {
     this.roomName = roomName;
     this.doc = new Y.Doc();
     this.elementsMap = this.doc.getMap<CanvasItem>('canvas-elements');
     this.commitsArray = this.doc.getArray<HistoryCommit>('canvas-commits');
+    this.workspaceMetaMap = this.doc.getMap<any>('workspace-metadata');
 
     // Retrieve or generate persistent user profile
     const savedUser = localStorage.getItem('chronosync-user-profile');
@@ -159,6 +162,11 @@ export class ChronoSyncEngine {
     // Listen to commits CRDT array updates
     this.commitsArray.observeDeep(() => {
       this.notifyCommits();
+    });
+
+    // Listen to workspace metadata CRDT map updates
+    this.workspaceMetaMap.observeDeep(() => {
+      this.notifyWorkspaceMeta();
     });
   }
 
@@ -357,6 +365,27 @@ export class ChronoSyncEngine {
     this.onSyncStatusListeners.add(cb);
     cb(this.isIdbSynced);
     return () => this.onSyncStatusListeners.delete(cb);
+  }
+
+  public setWorkspaceMeta(meta: WorkspaceMeta) {
+    this.doc.transact(() => {
+      this.workspaceMetaMap.set('meta', meta);
+    });
+  }
+
+  public getWorkspaceMeta(): WorkspaceMeta | null {
+    return (this.workspaceMetaMap.get('meta') as WorkspaceMeta) || null;
+  }
+
+  public subscribeWorkspaceMeta(cb: (meta: WorkspaceMeta | null) => void): () => void {
+    this.onWorkspaceMetaChangeListeners.add(cb);
+    cb(this.getWorkspaceMeta());
+    return () => this.onWorkspaceMetaChangeListeners.delete(cb);
+  }
+
+  private notifyWorkspaceMeta() {
+    const meta = this.getWorkspaceMeta();
+    this.onWorkspaceMetaChangeListeners.forEach((cb) => cb(meta));
   }
 
   private notifyElements() {

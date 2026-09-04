@@ -15,12 +15,15 @@ import {
   Eye,
   EyeOff,
   Image as ImageIcon,
+  Lock,
+  Globe,
 } from 'lucide-react';
-import type { PeerUser } from '../../types/canvas';
+import type { PeerUser, WorkspaceMeta } from '../../types/canvas';
 import { BOARD_TEMPLATES } from '../../utils/templates';
 
 interface HeaderBarProps {
   roomName: string;
+  workspaceMeta?: WorkspaceMeta | null;
   isIdbSynced: boolean;
   peers: PeerUser[];
   localUser: { name: string; color: string; avatar: string };
@@ -30,7 +33,7 @@ interface HeaderBarProps {
   isSoundMuted: boolean;
   isPresentationMode: boolean;
   onToggleTimeTravel: () => void;
-  onOpenShareModal: () => void;
+  onOpenWorkspaceModal: () => void;
   onOpenP2PMonitor: () => void;
   onOpenShortcuts: () => void;
   onToggleSound: () => void;
@@ -53,6 +56,7 @@ const COLOR_OPTIONS = [
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({
   roomName,
+  workspaceMeta,
   isIdbSynced,
   peers,
   localUser,
@@ -62,7 +66,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   isSoundMuted,
   isPresentationMode,
   onToggleTimeTravel,
-  onOpenShareModal,
+  onOpenWorkspaceModal,
   onOpenP2PMonitor,
   onOpenShortcuts,
   onToggleSound,
@@ -180,24 +184,48 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         {/* Vertical Separator */}
         <div style={{ width: '1px', height: '20px', backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
 
-        {/* Room Badge */}
+        {/* Workspace & Room Badge */}
         <div
-          onClick={onOpenShareModal}
+          onClick={onOpenWorkspaceModal}
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
-            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: '8px',
-            padding: '4px 10px',
+            gap: '8px',
+            backgroundColor: workspaceMeta?.isPrivate ? 'rgba(244, 63, 94, 0.08)' : 'rgba(56, 189, 248, 0.08)',
+            border: workspaceMeta?.isPrivate ? '1px solid rgba(244, 63, 94, 0.25)' : '1px solid rgba(56, 189, 248, 0.2)',
+            borderRadius: '10px',
+            padding: '5px 12px',
             cursor: 'pointer',
+            transition: 'all 0.15s ease',
           }}
-          title="Click to view room share link and change room"
+          title="Click to view workspace code, create, join, or change privacy"
         >
-          <span style={{ fontSize: '11px', color: '#94a3b8' }}>Room:</span>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: '#38bdf8' }}>{roomName}</span>
-          <span style={{ fontSize: '10px', color: '#64748b', marginLeft: '4px' }}>
+          {workspaceMeta?.isPrivate ? (
+            <Lock size={13} color="#f43f5e" />
+          ) : (
+            <Globe size={13} color="#38bdf8" />
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.01em' }}>
+                {workspaceMeta?.name || 'Workspace'}
+              </span>
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontFamily: 'var(--font-mono, monospace)',
+                  fontWeight: 700,
+                  color: workspaceMeta?.isPrivate ? '#f43f5e' : '#38bdf8',
+                  backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                  padding: '1px 5px',
+                  borderRadius: '4px',
+                }}
+              >
+                {roomName}
+              </span>
+            </div>
+          </div>
+          <span style={{ fontSize: '10px', color: '#64748b', marginLeft: '2px' }}>
             ({elementCount} obj)
           </span>
         </div>
@@ -527,9 +555,9 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <HelpCircle size={16} />
         </button>
 
-        {/* Share Button */}
+        {/* Share & Workspaces Button */}
         <button
-          onClick={onOpenShareModal}
+          onClick={onOpenWorkspaceModal}
           style={{
             display: 'flex',
             alignItems: 'center',

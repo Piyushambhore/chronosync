@@ -7,13 +7,15 @@ import type {
   ShapeType,
   ToolType,
   Viewport,
+  WorkspaceMeta,
 } from './types/canvas';
 import { InfiniteCanvas } from './components/Canvas/InfiniteCanvas';
 import { FloatingToolbar } from './components/Toolbar/FloatingToolbar';
 import { HeaderBar } from './components/Header/HeaderBar';
 import { TimeTravelScrubber } from './components/TimeTravel/TimeTravelScrubber';
 import { MiniMap } from './components/Canvas/MiniMap';
-import { ShareModal } from './components/Modals/ShareModal';
+import { WorkspaceModal } from './components/Modals/WorkspaceModal';
+import { PrivateRoomLockOverlay } from './components/Modals/PrivateRoomLockOverlay';
 import { P2PMonitorModal } from './components/Modals/P2PMonitorModal';
 import { GitLogModal } from './components/Modals/GitLogModal';
 import { ShortcutsModal } from './components/Modals/ShortcutsModal';
@@ -21,6 +23,16 @@ import { BOARD_TEMPLATES } from './utils/templates';
 import { exportCanvasToPng } from './utils/exportCanvas';
 import { soundFX } from './utils/soundEffects';
 import confetti from 'canvas-confetti';
+
+export function simpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash |= 0;
+  }
+  return 'cs_' + Math.abs(hash).toString(36);
+}
 
 export function App() {
   // 1. Determine Room Name from URL
@@ -65,8 +77,11 @@ export function App() {
   const [isPresentationMode, setIsPresentationMode] = useState(false);
   const [isSoundMuted, setIsSoundMuted] = useState(soundFX.isMuted);
 
-  // 7. Modals
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  // 7. Modals & Workspace State
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
+  const [workspaceMeta, setWorkspaceMeta] = useState<WorkspaceMeta | null>(null);
+  const [isRoomLocked, setIsRoomLocked] = useState(false);
+  const [pendingMeta, setPendingMeta] = useState<WorkspaceMeta | null>(null);
   const [isP2PMonitorOpen, setIsP2PMonitorOpen] = useState(false);
   const [isGitLogOpen, setIsGitLogOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
@@ -76,6 +91,11 @@ export function App() {
     const newEngine = new ChronoSyncEngine(roomName);
     setEngine(newEngine);
     setLocalUser(newEngine.localUser);
+
+    if (pendingMeta) {
+      newEngine.setWorkspaceMeta(pendingMeta);
+      setPendingMeta(null);
+    }
 
     const unsubElements = newEngine.subscribeElements((newEls) => {
       setElements(newEls);
@@ -94,14 +114,40 @@ export function App() {
       setIsIdbSynced(synced);
     });
 
+    const unsubMeta = newEngine.subscribeWorkspaceMeta((meta) => {
+      setWorkspaceMeta(meta);
+    });
+
     return () => {
       unsubElements();
       unsubPeers();
       unsubCommits();
       unsubSync();
+      unsubMeta();
       newEngine.destroy();
     };
-  }, [roomName]);
+  }, [roomName, pendingMeta]);
+
+  // Check room lock state based on workspace metadata and passcode
+  useEffect(() => {
+    if (!workspaceMeta || !workspaceMeta.isPrivate) {
+      setIsRoomLocked(false);
+      return;
+    }
+
+    const savedUnlock = sessionStorage.getItem('unlocked_' + roomName);
+    const urlPass = new URLSearchParams(window.location.search).get('pass');
+    const urlHash = urlPass ? simpleHash(urlPass) : null;
+
+    if (
+      (savedUnlock && savedUnlock === workspaceMeta.passcodeHash) ||
+      (urlHash && urlHash === workspaceMeta.passcodeHash)
+    ) {
+      setIsRoomLocked(false);
+    } else {
+      setIsRoomLocked(true);
+    }
+  }, [workspaceMeta, roomName]);
 
   // Provide initial starter sample elements if room is brand new
   const initializedSampleRef = useRef(false);
@@ -240,14 +286,76 @@ export function App() {
     setActiveCommitIndex(Math.max(0, commits.length - 1));
   }, [commits.length]);
 
-  // Room switching
-  const handleSwitchRoom = useCallback((newRoom: string) => {
+  // Room & Workspace switching
+  const handleSwitchRoom = useCallback((newRoom: string, passcode?: string) => {
     const url = new URL(window.location.href);
     url.searchParams.set('room', newRoom);
+    if (passcode) {
+      url.searchParams.set('pass', passcode);
+      sessionStorage.setItem('unlocked_' + newRoom, simpleHash(passcode));
+    } else {
+      url.searchParams.delete('pass');
+    }
     window.history.pushState({}, '', url.toString());
     setRoomName(newRoom);
     setSelectedIds([]);
   }, []);
+
+  // Create Workspace (Public or Passcode-Protected Private)
+  const handleCreateWorkspace = useCallback(
+    (name: string, code: string, isPrivate: boolean, passcode?: string) => {
+      const passcodeHash = isPrivate && passcode ? simpleHash(passcode) : undefined;
+      const meta: WorkspaceMeta = {
+        code,
+        name,
+        isPrivate,
+        passcodeHash,
+        createdAt: Date.now(),
+        createdBy: localUser.name,
+      };
+
+      // Auto-unlock for the creator
+      if (passcodeHash) {
+        sessionStorage.setItem('unlocked_' + code, passcodeHash);
+      }
+
+      // Record in recent workspaces list
+      try {
+        const stored = localStorage.getItem('chronosync-recent-workspaces');
+        const list = stored ? JSON.parse(stored) : [];
+        const filtered = list.filter((item: any) => item.code !== code);
+        filtered.unshift({ code, name, isPrivate, lastVisited: Date.now() });
+        localStorage.setItem('chronosync-recent-workspaces', JSON.stringify(filtered.slice(0, 10)));
+      } catch {
+        // ignore
+      }
+
+      setPendingMeta(meta);
+      handleSwitchRoom(code, passcode);
+      soundFX.playSuccess();
+      confetti({ particleCount: 50, spread: 60, origin: { y: 0.2 } });
+    },
+    [localUser.name, handleSwitchRoom]
+  );
+
+  // Unlock private room with passcode
+  const handleUnlockRoom = useCallback(
+    (passcode: string) => {
+      if (!workspaceMeta || !workspaceMeta.passcodeHash) {
+        setIsRoomLocked(false);
+        return true;
+      }
+      const inputHash = simpleHash(passcode);
+      if (inputHash === workspaceMeta.passcodeHash) {
+        sessionStorage.setItem('unlocked_' + roomName, inputHash);
+        setIsRoomLocked(false);
+        soundFX.playSuccess();
+        return true;
+      }
+      return false;
+    },
+    [workspaceMeta, roomName]
+  );
 
   // Export Canvas JSON
   const handleExportJson = useCallback(() => {
@@ -328,6 +436,7 @@ export function App() {
       {/* Top Header Bar */}
       <HeaderBar
         roomName={roomName}
+        workspaceMeta={workspaceMeta}
         isIdbSynced={isIdbSynced}
         peers={peers}
         localUser={localUser}
@@ -337,7 +446,7 @@ export function App() {
         isSoundMuted={isSoundMuted}
         isPresentationMode={isPresentationMode}
         onToggleTimeTravel={() => setIsTimeTravelActive(!isTimeTravelActive)}
-        onOpenShareModal={() => setIsShareModalOpen(true)}
+        onOpenWorkspaceModal={() => setIsWorkspaceModalOpen(true)}
         onOpenP2PMonitor={() => setIsP2PMonitorOpen(true)}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
         onToggleSound={handleToggleSound}
@@ -412,13 +521,25 @@ export function App() {
         />
       )}
 
-      {/* Share & Room Switcher Modal */}
-      <ShareModal
-        isOpen={isShareModalOpen}
+      {/* Workspace Manager & Share Modal */}
+      <WorkspaceModal
+        isOpen={isWorkspaceModalOpen}
         roomName={roomName}
-        onClose={() => setIsShareModalOpen(false)}
+        workspaceMeta={workspaceMeta}
+        onClose={() => setIsWorkspaceModalOpen(false)}
         onSwitchRoom={handleSwitchRoom}
+        onCreateWorkspace={handleCreateWorkspace}
       />
+
+      {/* Private Room Passcode Protection Overlay */}
+      {isRoomLocked && (
+        <PrivateRoomLockOverlay
+          roomName={roomName}
+          workspaceMeta={workspaceMeta}
+          onUnlock={handleUnlockRoom}
+          onSwitchToPublic={() => handleSwitchRoom('chronosync-main')}
+        />
+      )}
 
       {/* P2P Diagnostics Modal */}
       <P2PMonitorModal

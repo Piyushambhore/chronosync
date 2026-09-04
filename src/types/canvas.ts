@@ -122,3 +122,12 @@ export interface RoomConnectionStatus {
   roomName: string;
   iceState?: string;
 }
+
+export interface WorkspaceMeta {
+  code: string;
+  name: string;
+  isPrivate: boolean;
+  passcodeHash?: string;
+  createdAt: number;
+  createdBy: string;
+}

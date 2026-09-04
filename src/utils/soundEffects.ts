@@ -120,6 +120,11 @@ class SoundFXManager {
     osc.start();
     osc.stop(ctx.currentTime + 0.06);
   }
+
+  // Harmonic chime for successful actions (workspaces, unlocks)
+  public playSuccess() {
+    this.playChime();
+  }
 }
 
 export const soundFX = new SoundFXManager();
