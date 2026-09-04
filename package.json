@@ -1,0 +1,37 @@
+{
+  "name": "new-folder",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:party": "partykit dev",
+    "dev:full": "concurrently -n VITE,PARTY -c cyan,magenta \"npm run dev\" \"npm run dev:party\"",
+    "deploy:party": "partykit deploy",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "canvas-confetti": "^1.9.4",
+    "lucide-react": "^1.41.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "y-indexeddb": "^9.0.12",
+    "y-partykit": "^0.0.33",
+    "yjs": "^13.6.32"
+  },
+  "devDependencies": {
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "concurrently": "^10.0.5",
+    "oxlint": "^1.79.0",
+    "partykit": "^0.0.115",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.2",
+    "y-webrtc": "^10.3.0"
+  }
+}
